@@ -1,0 +1,8 @@
+{
+  "name": "u-wick-api",
+  "version": "0.1.0",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": "20.x" },
+  "dependencies": { "express": "^4.19.2" }
+}
