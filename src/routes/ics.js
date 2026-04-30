@@ -29,10 +29,10 @@ router.post('/connect', requireAuth, async (req, res, next) => {
     }
 
     // Fetch user's current_quarter to tag newly created courses
-    const userRes = await db.query('SELECT current_quarter FROM users WHERE id = $1', [req.user.userId]);
+    const userRes = await db.query('SELECT current_quarter FROM users WHERE id = $1', [req.user.id]);
     const quarter = userRes.rows[0]?.current_quarter || null;
 
-    const { synced, courses } = await fetchAndSync(req.user.userId, safeUrl, quarter);
+    const { synced, courses } = await fetchAndSync(req.user.id, safeUrl, quarter);
 
     res.status(200).json({ synced, courses });
   } catch (err) {
@@ -45,14 +45,14 @@ router.post('/sync', requireAuth, async (req, res, next) => {
   try {
     const userRes = await db.query(
       'SELECT ics_url, current_quarter FROM users WHERE id = $1',
-      [req.user.userId]
+      [req.user.id]
     );
     const user = userRes.rows[0];
     if (!user?.ics_url) {
       return res.status(400).json({ error: 'No ICS URL connected. Use POST /ics/connect first.' });
     }
 
-    const { synced, courses } = await fetchAndSync(req.user.userId, user.ics_url, user.current_quarter);
+    const { synced, courses } = await fetchAndSync(req.user.id, user.ics_url, user.current_quarter);
 
     res.status(200).json({ synced, courses });
   } catch (err) {
@@ -65,13 +65,13 @@ router.get('/status', requireAuth, async (req, res, next) => {
   try {
     const userRes = await db.query(
       'SELECT ics_url, ics_last_synced FROM users WHERE id = $1',
-      [req.user.userId]
+      [req.user.id]
     );
     const user = userRes.rows[0];
 
     const [courseCount, taskCount] = await Promise.all([
-      db.query("SELECT COUNT(*) FROM courses WHERE user_id = $1 AND source = 'ics'", [req.user.userId]),
-      db.query("SELECT COUNT(*) FROM tasks WHERE user_id = $1 AND source = 'ics'", [req.user.userId]),
+      db.query("SELECT COUNT(*) FROM courses WHERE user_id = $1 AND source = 'ics'", [req.user.id]),
+      db.query("SELECT COUNT(*) FROM tasks WHERE user_id = $1 AND source = 'ics'", [req.user.id]),
     ]);
 
     res.json({

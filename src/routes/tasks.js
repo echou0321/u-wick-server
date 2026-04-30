@@ -8,7 +8,7 @@ const db = require('../db');
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const conditions = ['user_id = $1'];
-    const values = [req.user.userId];
+    const values = [req.user.id];
 
     if (req.query.done !== undefined) {
       values.push(req.query.done === 'true');
@@ -56,7 +56,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
       `UPDATE tasks SET ${sets.join(', ')}
        WHERE id = $1 AND user_id = $${values.length + 1}
        RETURNING *`,
-      [...values, req.user.userId]
+      [...values, req.user.id]
     );
 
     if (!result.rows.length) return res.status(404).json({ error: 'Task not found' });
@@ -71,7 +71,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const task = await db.query(
       'SELECT id, source FROM tasks WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.userId]
+      [req.params.id, req.user.id]
     );
 
     if (!task.rows.length) return res.status(404).json({ error: 'Task not found' });

@@ -14,7 +14,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
               created_at, last_active
        FROM users
        WHERE id = $1`,
-      [req.user.userId]
+      [req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -51,7 +51,7 @@ router.patch('/me', requireAuth, async (req, res, next) => {
                  ics_url, ics_last_synced, onboarding_complete,
                  notif_active, expo_push_token, current_quarter,
                  created_at, last_active`,
-      [...values, req.user.userId]
+      [...values, req.user.id]
     );
 
     res.json(result.rows[0]);
@@ -67,7 +67,7 @@ router.post('/me/onboarding/complete', requireAuth, async (req, res, next) => {
       `UPDATE users SET onboarding_complete = true
        WHERE id = $1
        RETURNING id, email, display_name, onboarding_complete`,
-      [req.user.userId]
+      [req.user.id]
     );
 
     res.json(result.rows[0]);
