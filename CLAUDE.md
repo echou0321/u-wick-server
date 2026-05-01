@@ -23,7 +23,8 @@ Say "Design Doc loaded." at the start of every session after reading it.
 - Document Intelligence: F0 tier
 - App Service: `https://u-wick-api-hxaketgeedg9cjcr.centralus-01.azurewebsites.net`
 - GitHub Actions CI/CD — push to main autodeploys
-- `DATABASE_URL` and `JWT_SECRET` set in Azure App Service env vars
+- `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL` set in Azure App Service env vars
+- `DATABASE_URL` and `JWT_SECRET` also added as GitHub Actions secrets (required for CI test step)
 
 ---
 
@@ -38,8 +39,10 @@ Say "Design Doc loaded." at the start of every session after reading it.
 
 ## Code Conventions
 - Auth middleware sets `req.user = { id, email }` — always use `req.user.id`, never `req.user.userId`
+- `requireAdmin` middleware in `src/middleware/auth.js` — checks `req.user.email === process.env.ADMIN_EMAIL`; used on GET /sessions/export
 - Test account: `test@uw.edu` / `password123` (live Azure DB)
 - Local `.env` required (not committed): `DATABASE_URL` + `JWT_SECRET`
+- Admin tests: set `process.env.ADMIN_EMAIL = 'test@uw.edu'` at top of test file to grant admin to test account
 
 ---
 
@@ -58,19 +61,24 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `src/routes/ics.js` — POST /connect, POST /sync, GET /status
 - `src/routes/tasks.js` — GET /, PATCH /:id, DELETE /:id
 - `src/routes/schedule.js` — GET /, POST /blocks, PATCH /blocks/:id, DELETE /blocks/:id, GET /heat
+- `src/routes/sessions.js` — POST /start, POST /event, POST /end, GET /export (admin)
+- `src/routes/majors.js` — GET /, GET /:id
+- `src/routes/goals.js` — POST /major, GET /major, PATCH /major/:id, PATCH /major/:id/checklist
 - `src/lib/icsSync.js` — fetchAndSync(), parseAndUpsert(), findOrCreateCourse(), upsertTask()
-- `src/middleware/auth.js` — requireAuth (JWT verify); sets `req.user = { id, email }`
+- `src/middleware/auth.js` — requireAuth (JWT verify); requireAdmin (ADMIN_EMAIL check); sets `req.user = { id, email }`
 - `src/middleware/logger.js` — logEvent() fire-and-forget INSERT into session_events
 - `tests/schedule.test.js` — 25 tests, all passing
-- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-04-29
+- `tests/sessions.test.js` — 20 tests, all passing
+- `tests/majors.test.js` — 8 tests, all passing
+- `tests/goals.test.js` — 20 tests, all passing
+- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-04-30
 
 ## What's Next (in order)
-1. **Session routes** — POST /sessions/start, POST /sessions/event, POST /sessions/end, GET /sessions/export (admin) + `tests/sessions.test.js`
-2. **Major advising** — GET /majors, GET /majors/:id, POST /goals/major, GET /goals/major, PATCH /goals/major/:id, PATCH /goals/major/:id/checklist + tests
-3. **Syllabus upload pipeline** — POST /syllabus/upload, GET /syllabus/status/:jobId, POST /syllabus/confirm/:jobId, GET /syllabus + tests
-4. **Cron jobs** — ICS re-sync every 6h, start-this-now nudge, morning digest, major app reminders (node-cron)
-5. **Push token** — PATCH /users/me/push-token
-6. **Chat route** — POST /chat (SSE), GET /chat/history, DELETE /chat/history — blocked on Anthropic API key
+1. **Syllabus upload pipeline** — POST /syllabus/upload, GET /syllabus/status/:jobId, POST /syllabus/confirm/:jobId, GET /syllabus + tests
+2. **Cron jobs** — ICS re-sync every 6h, start-this-now nudge, morning digest, major app reminders (node-cron)
+3. **Push token** — PATCH /users/me/push-token
+4. **Chat route** — POST /chat (SSE), GET /chat/history, DELETE /chat/history — blocked on Anthropic API key
+5. **One-time major scraper** — populate `major_requirements` table with 6 UW programs (Cheerio + Axios)
 
 ---
 
