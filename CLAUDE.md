@@ -57,7 +57,7 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 
 ## What's Built
 - `src/routes/auth.js` — POST /register, POST /login
-- `src/routes/users.js` — GET /me, PATCH /me, POST /me/onboarding/complete
+- `src/routes/users.js` — GET /me, PATCH /me, POST /me/onboarding/complete, PATCH /me/push-token
 - `src/routes/ics.js` — POST /connect, POST /sync, GET /status
 - `src/routes/tasks.js` — GET /, PATCH /:id, DELETE /:id
 - `src/routes/schedule.js` — GET /, POST /blocks, PATCH /blocks/:id, DELETE /blocks/:id, GET /heat
@@ -65,24 +65,29 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `src/routes/majors.js` — GET /, GET /:id
 - `src/routes/goals.js` — POST /major, GET /major, PATCH /major/:id, PATCH /major/:id/checklist
 - `src/lib/icsSync.js` — fetchAndSync(), parseAndUpsert(), findOrCreateCourse(), upsertTask()
+- `src/lib/expoPush.js` — sendPush(token, title, body, data) — fires to Expo push API; data field enables deep linking
 - `src/middleware/auth.js` — requireAuth (JWT verify); requireAdmin (ADMIN_EMAIL check); sets `req.user = { id, email }`
 - `src/middleware/logger.js` — logEvent() fire-and-forget INSERT into session_events
+- `src/jobs/icsResync.js` — every 6h, re-syncs all users with ics_url set
+- `src/jobs/startThisNow.js` — every 6h, push nudge for weight>=2.0 tasks due in 72h with no study block; sends taskId for deep link
+- `src/jobs/morningDigest.js` — 8am Pacific (15:00 UTC), today's tasks summary push
+- `src/jobs/majorReminders.js` — 9am Pacific (16:00 UTC), 30d/7d/1d major application deadline reminders
+- `src/jobs/index.js` — registers all four cron jobs; loaded by server.js on startup
 - `tests/schedule.test.js` — 25 tests, all passing
 - `tests/sessions.test.js` — 20 tests, all passing
 - `tests/majors.test.js` — 8 tests, all passing
 - `tests/goals.test.js` — 20 tests, all passing
-- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-04-30
+- `tests/users.test.js` — 10 tests, all passing
+- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-05-01
 
 ## What's Next (in order)
-1. **Syllabus upload pipeline** — POST /syllabus/upload, GET /syllabus/status/:jobId, POST /syllabus/confirm/:jobId, GET /syllabus + tests
-2. **Cron jobs** — ICS re-sync every 6h, start-this-now nudge, morning digest, major app reminders (node-cron)
-3. **Push token** — PATCH /users/me/push-token
-4. **Chat route** — POST /chat (SSE), GET /chat/history, DELETE /chat/history — blocked on Anthropic API key
-5. **One-time major scraper** — populate `major_requirements` table with 6 UW programs (Cheerio + Axios)
+1. **One-time major scraper** — populate `major_requirements` table with 6 UW programs (Cheerio + Axios); fully unblocked
+2. **Syllabus upload pipeline** — POST /syllabus/upload, GET /syllabus/status/:jobId, POST /syllabus/confirm/:jobId, GET /syllabus + tests; needs multer, @azure/storage-blob, @azure/ai-form-recognizer; Claude extraction step blocked on API key
+3. **Chat route** — POST /chat (SSE), GET /chat/history, DELETE /chat/history — blocked on Anthropic API key
 
 ---
 
 ## Dependencies Installed
-`axios, bcryptjs, cors, dotenv, express, ical.js, jsonwebtoken, pg, jest (dev), supertest (dev)`
+`axios, bcryptjs, cors, dotenv, express, ical.js, jsonwebtoken, node-cron, pg, jest (dev), supertest (dev)`
 
-Not yet installed (add when needed): `node-cron, multer, @anthropic-ai/sdk, @azure/storage-blob, @azure/ai-form-recognizer, cheerio`
+Not yet installed (add when needed): `multer, @anthropic-ai/sdk, @azure/storage-blob, @azure/ai-form-recognizer, cheerio`

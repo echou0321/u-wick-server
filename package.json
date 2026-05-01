@@ -21,6 +21,7 @@
     "express": "^4.19.2",
     "ical.js": "^2.2.1",
     "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.2.1",
     "pg": "^8.20.0"
   },
   "devDependencies": {

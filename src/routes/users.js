@@ -76,4 +76,19 @@ router.post('/me/onboarding/complete', requireAuth, async (req, res, next) => {
   }
 });
 
+// PATCH /api/users/me/push-token
+router.patch('/me/push-token', requireAuth, async (req, res, next) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'token is required' });
+  try {
+    await db.query(
+      'UPDATE users SET expo_push_token = $1, notif_active = true WHERE id = $2',
+      [token, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
