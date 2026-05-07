@@ -85,4 +85,25 @@ router.get('/status', requireAuth, async (req, res, next) => {
   }
 });
 
+// DELETE /api/ics/disconnect
+router.delete('/disconnect', requireAuth, async (req, res, next) => {
+  try {
+    await db.query(
+      'UPDATE users SET ics_url = null, ics_last_synced = null WHERE id = $1',
+      [req.user.id]
+    );
+    const tasks = await db.query(
+      "DELETE FROM tasks WHERE user_id = $1 AND source = 'ics' RETURNING id",
+      [req.user.id]
+    );
+    await db.query(
+      "DELETE FROM courses WHERE user_id = $1 AND source = 'ics'",
+      [req.user.id]
+    );
+    res.json({ ok: true, tasks_removed: tasks.rowCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

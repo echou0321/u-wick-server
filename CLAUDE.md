@@ -65,6 +65,10 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `src/routes/sessions.js` — POST /start, POST /event, POST /end, GET /export (admin)
 - `src/routes/syllabus.js` — POST / (text paste → Claude extract), GET /status/:jobId, POST /confirm/:jobId, GET /
 - `src/routes/chat.js` — POST / (SSE stream, side-effects: add_study_blocks + complete_task), GET /history, DELETE /history
+- `src/routes/auth.js` — POST /register, POST /login, DELETE /logout
+- `src/routes/users.js` — GET /me, GET /me/dashboard, PATCH /me, POST /me/onboarding/complete, PATCH /me/push-token
+- `src/routes/ics.js` — POST /connect, POST /sync, GET /status, DELETE /disconnect
+- `src/routes/tasks.js` — GET /, POST /, PATCH /:id, DELETE /:id, GET /:id/subtasks, POST /:id/breakdown
 - `src/routes/majors.js` — GET /, GET /:id
 - `src/routes/goals.js` — POST /major, GET /major, PATCH /major/:id, PATCH /major/:id/checklist
 - `src/lib/icsSync.js` — fetchAndSync(), parseAndUpsert(), findOrCreateCourse(), upsertTask()
@@ -84,11 +88,13 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `tests/goals.test.js` — 20 tests, all passing
 - `tests/users.test.js` — 10 tests, all passing
 - `tests/syllabus.test.js` — 16 tests, all passing
-- `tests/chat.test.js` — 15 tests, all passing (Anthropic SDK mocked)
-- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-05-01
+- `tests/auth.test.js` — 8 tests, all passing
+- `tests/ics.test.js` — 9 tests, all passing
+- `tests/tasks.test.js` — 18 tests, all passing (Anthropic SDK mocked for breakdown)
+- `tests/chat.test.js` — 24 tests, all passing (Anthropic SDK mocked; all 7 side-effects covered)
+- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-05-07
 
 ## What's Next (in order)
-- **Remaining chat side-effects** — `breakdown_task`, `add_task`, `schedule_alert`, `update_checklist`, `set_notif_active` — deferred to next session (currently only `add_study_blocks` + `complete_task` are wired)
 - **Frontend integration and user study prep**
 
 ---

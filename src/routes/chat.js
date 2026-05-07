@@ -29,6 +29,67 @@ async function applySideEffect(userId, effect) {
       [effect.payload.task_id, userId]
     );
   }
+
+  if (effect.action === 'breakdown_task') {
+    const { task_id, subtasks = [] } = effect.payload || {};
+    if (!task_id) return;
+    const { rows } = await db.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2',
+      [task_id, userId]
+    );
+    if (!rows.length) return;
+    for (let i = 0; i < subtasks.length; i++) {
+      const sub = subtasks[i];
+      await db.query(
+        `INSERT INTO task_subtasks (task_id, title, suggested_start, sort_order)
+         VALUES ($1, $2, $3, $4)`,
+        [task_id, sub.title, sub.suggested_start || null, i]
+      );
+    }
+  }
+
+  if (effect.action === 'add_task') {
+    const { title, course_id, due_date, weight } = effect.payload || {};
+    if (!title) return;
+    await db.query(
+      `INSERT INTO tasks (user_id, course_id, title, due_date, weight, source)
+       VALUES ($1, $2, $3, $4, $5, 'ai')`,
+      [userId, course_id || null, title, due_date || null, weight || 1.0]
+    );
+  }
+
+  if (effect.action === 'schedule_alert') {
+    const { type, title, body, scheduled_for, related_task_id } = effect.payload || {};
+    if (!title || !body || !scheduled_for) return;
+    await db.query(
+      `INSERT INTO notifications (user_id, type, title, body, scheduled_for, related_task_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, type || 'deadline_reminder', title, body, scheduled_for, related_task_id || null]
+    );
+  }
+
+  if (effect.action === 'update_checklist') {
+    const { goal_id, step_id, done } = effect.payload || {};
+    if (!goal_id || step_id == null) return;
+    await db.query(
+      `UPDATE student_major_goals
+       SET checklist_progress = jsonb_set(
+         COALESCE(checklist_progress, '{}'),
+         $1,
+         $2::jsonb
+       ),
+       updated_at = now()
+       WHERE id = $3 AND user_id = $4`,
+      [`{${step_id}}`, JSON.stringify(done === true), goal_id, userId]
+    );
+  }
+
+  if (effect.action === 'set_notif_active') {
+    await db.query(
+      'UPDATE users SET notif_active = true WHERE id = $1',
+      [userId]
+    );
+  }
 }
 
 // POST /api/chat

@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const Anthropic = require('@anthropic-ai/sdk');
 const { requireAuth } = require('../middleware/auth');
 const db = require('../db');
+
+const anthropic = new Anthropic();
 
 // GET /api/tasks
 // Query params: ?done=true|false, ?course_id=, ?due_before=ISO8601, ?limit=
@@ -36,6 +39,31 @@ router.get('/', requireAuth, async (req, res, next) => {
     );
 
     res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/tasks
+router.post('/', requireAuth, async (req, res, next) => {
+  try {
+    const { title, course_id, due_date, weight } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' });
+
+    if (course_id) {
+      const { rows } = await db.query(
+        'SELECT id FROM courses WHERE id = $1 AND user_id = $2',
+        [course_id, req.user.id]
+      );
+      if (!rows.length) return res.status(404).json({ error: 'Course not found' });
+    }
+
+    const { rows } = await db.query(
+      `INSERT INTO tasks (user_id, course_id, title, due_date, weight, source)
+       VALUES ($1, $2, $3, $4, $5, 'manual') RETURNING *`,
+      [req.user.id, course_id || null, title.trim(), due_date || null, weight || 1.0]
+    );
+    res.status(201).json(rows[0]);
   } catch (err) {
     next(err);
   }
@@ -81,6 +109,75 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
 
     await db.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/tasks/:id/subtasks
+router.get('/:id/subtasks', requireAuth, async (req, res, next) => {
+  try {
+    const { rows: task } = await db.query(
+      'SELECT id FROM tasks WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!task.length) return res.status(404).json({ error: 'Task not found' });
+
+    const { rows } = await db.query(
+      'SELECT * FROM task_subtasks WHERE task_id = $1 ORDER BY sort_order ASC',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/tasks/:id/breakdown
+router.post('/:id/breakdown', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT t.*, c.name AS course_name
+       FROM tasks t
+       LEFT JOIN courses c ON c.id = t.course_id
+       WHERE t.id = $1 AND t.user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Task not found' });
+    const task = rows[0];
+
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `A student needs to complete: "${task.title}"${task.course_name ? ` for ${task.course_name}` : ''}.
+${task.due_date ? `It is due ${new Date(task.due_date).toDateString()}.` : ''}
+
+Generate 3–6 concrete, actionable subtasks to help them finish this.
+
+Return ONLY a JSON array with no prose. Each element:
+{ "title": "subtask description", "suggested_start": "ISO8601 datetime or null" }`,
+      }],
+    });
+
+    const raw = msg.content[0].text.trim()
+      .replace(/^```(?:json)?\n?/, '')
+      .replace(/\n?```$/, '');
+    const subtasks = JSON.parse(raw);
+
+    await db.query('DELETE FROM task_subtasks WHERE task_id = $1', [task.id]);
+    const inserted = [];
+    for (let i = 0; i < subtasks.length; i++) {
+      const { rows: sub } = await db.query(
+        `INSERT INTO task_subtasks (task_id, title, suggested_start, sort_order)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [task.id, subtasks[i].title, subtasks[i].suggested_start || null, i]
+      );
+      inserted.push(sub[0]);
+    }
+
+    res.status(201).json(inserted);
   } catch (err) {
     next(err);
   }

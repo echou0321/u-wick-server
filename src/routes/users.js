@@ -76,6 +76,61 @@ router.post('/me/onboarding/complete', requireAuth, async (req, res, next) => {
   }
 });
 
+// GET /api/users/me/dashboard
+router.get('/me/dashboard', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const [tasksDueSoon, weekHeat, scheduleToday, nudges] = await Promise.all([
+      db.query(
+        `SELECT id, course_id, title, due_date, weight, source, done, highlighted
+         FROM tasks
+         WHERE user_id = $1 AND done = false AND due_date BETWEEN NOW() AND NOW() + INTERVAL '48 hours'
+         ORDER BY due_date ASC`,
+        [userId]
+      ),
+      db.query(
+        `SELECT COALESCE(SUM(weight), 0) AS raw_score
+         FROM tasks
+         WHERE user_id = $1 AND done = false
+           AND due_date >= date_trunc('week', NOW())
+           AND due_date < date_trunc('week', NOW()) + INTERVAL '7 days'`,
+        [userId]
+      ),
+      db.query(
+        `SELECT id, course_id, title, start_time, end_time, block_type, color
+         FROM schedule_blocks
+         WHERE user_id = $1
+           AND start_time >= date_trunc('day', NOW())
+           AND start_time < date_trunc('day', NOW()) + INTERVAL '1 day'
+         ORDER BY start_time ASC`,
+        [userId]
+      ),
+      db.query(
+        `SELECT id, type, title, body, scheduled_for, related_task_id
+         FROM notifications
+         WHERE user_id = $1 AND delivered_at IS NULL AND scheduled_for <= NOW()
+         ORDER BY scheduled_for ASC`,
+        [userId]
+      ),
+    ]);
+
+    const raw = parseFloat(weekHeat.rows[0].raw_score);
+    let label = 'light', color = '#6AF7C8';
+    if (raw >= 8) { label = 'intense'; color = '#F76A6A'; }
+    else if (raw >= 5) { label = 'heavy'; color = '#F7A06A'; }
+    else if (raw >= 2) { label = 'moderate'; color = '#F7D06A'; }
+
+    res.json({
+      tasks_due_soon: tasksDueSoon.rows,
+      schedule_today: scheduleToday.rows,
+      nudges: nudges.rows,
+      heat_this_week: { raw_score: raw, label, color },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/users/me/push-token
 router.patch('/me/push-token', requireAuth, async (req, res, next) => {
   const { token } = req.body;

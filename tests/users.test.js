@@ -93,6 +93,34 @@ describe('POST /api/users/me/onboarding/complete', () => {
   });
 });
 
+// GET /api/users/me/dashboard
+describe('GET /api/users/me/dashboard', () => {
+  it('returns 401 with no token', async () => {
+    const res = await request(app).get('/api/users/me/dashboard');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns dashboard aggregate shape', async () => {
+    const res = await request(app)
+      .get('/api/users/me/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.tasks_due_soon)).toBe(true);
+    expect(Array.isArray(res.body.schedule_today)).toBe(true);
+    expect(Array.isArray(res.body.nudges)).toBe(true);
+    expect(res.body.heat_this_week).toHaveProperty('raw_score');
+    expect(res.body.heat_this_week).toHaveProperty('label');
+    expect(res.body.heat_this_week).toHaveProperty('color');
+  });
+
+  it('heat label is one of the four valid values', async () => {
+    const res = await request(app)
+      .get('/api/users/me/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(['light', 'moderate', 'heavy', 'intense']).toContain(res.body.heat_this_week.label);
+  });
+});
+
 // PATCH /api/users/me/push-token
 describe('PATCH /api/users/me/push-token', () => {
   it('returns 401 with no token', async () => {

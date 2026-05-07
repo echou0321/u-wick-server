@@ -444,11 +444,11 @@ Claude is instructed via the system prompt to wrap side-effect JSON in `<side_ef
 |--------|-------------|-----------------|--------|
 | `add_study_blocks` | INSERT into `schedule_blocks` (source = `ai_generated`) | Calendar UI refreshes; heat map score recalculates | ✅ Implemented |
 | `complete_task` | UPDATE `tasks SET done = true` | Task moves to completed section | ✅ Implemented |
-| `breakdown_task` | INSERT into `task_subtasks` for given `task_id` | Task row expands to show subtask checklist | 🔲 Pending |
-| `add_task` | INSERT into `tasks` (source = `ai`) | New task appears in pending list | 🔲 Pending |
-| `schedule_alert` | INSERT into `notifications` (type, scheduled_for) | Notification queued for background delivery | 🔲 Pending |
-| `update_checklist` | UPDATE `student_major_goals` `checklist_progress` WHERE `id = goal_id` | Major advising checklist updates in UI (`goal_id` required in payload) | 🔲 Pending |
-| `set_notif_active` | UPDATE `users SET notif_active = true` | Notification permission flow triggered on client | 🔲 Pending |
+| `breakdown_task` | INSERT into `task_subtasks` for given `task_id` | Task row expands to show subtask checklist | ✅ Implemented |
+| `add_task` | INSERT into `tasks` (source = `ai`) | New task appears in pending list | ✅ Implemented |
+| `schedule_alert` | INSERT into `notifications` (type, scheduled_for) | Notification queued for background delivery | ✅ Implemented |
+| `update_checklist` | UPDATE `student_major_goals` `checklist_progress` WHERE `id = goal_id` | Major advising checklist updates in UI (`goal_id` required in payload) | ✅ Implemented |
+| `set_notif_active` | UPDATE `users SET notif_active = true` | Notification permission flow triggered on client | ✅ Implemented |
 
 **Side-Effect Envelope Example:**
 ```

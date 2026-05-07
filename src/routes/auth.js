@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -72,6 +73,16 @@ router.post('/login', async (req, res, next) => {
 
     const { password_hash, ...safeUser } = user;
     res.json({ token, user: safeUser });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/auth/logout  (stateless JWT — client drops token; server records last_active)
+router.delete('/logout', requireAuth, async (req, res, next) => {
+  try {
+    await db.query('UPDATE users SET last_active = now() WHERE id = $1', [req.user.id]);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
