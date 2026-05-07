@@ -317,7 +317,7 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 
 | Method + Path | Auth | Description |
 |---------------|------|-------------|
-| `POST /auth/register` | Public | Create account: `{ email, password, display_name }` → `{ token, user }`. Password hashed with bcrypt (saltRounds: 12). |
+| `POST /auth/register` | Public | Create account: `{ email, password, display_name }` → `{ token, user }`. Password hashed with bcrypt (saltRounds: 10). |
 | `POST /auth/login` | Public | `{ email, password }` → `{ token, user }`. Verifies bcrypt hash; signs JWT with `JWT_SECRET`. |
 | `DELETE /auth/logout` | Yes | Invalidate current session (client drops token from SecureStore). |
 
@@ -328,7 +328,7 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 | `GET /users/me` | Yes | Full user profile + `onboarding_complete` flag + `current_quarter` |
 | `PATCH /users/me` | Yes | Update `major`, `enrollment_status`, `display_name`, `current_quarter` |
 | `POST /users/me/onboarding/complete` | Yes | Persist `onboarding_complete = true` |
-| `GET /users/me/dashboard` | Yes | Aggregate: today's tasks, schedule blocks, active nudges, heat scores |
+| `GET /users/me/dashboard` | Yes | Aggregate snapshot → `{ tasks_due_soon: [...], schedule_today: [...], nudges: [...], heat_this_week: { raw_score, label, color } }`. `tasks_due_soon` = incomplete tasks due in next 48 h. `nudges` = undelivered notifications with `scheduled_for ≤ now`. `heat_this_week` uses absolute thresholds (raw≥8 → intense, ≥5 → heavy, ≥2 → moderate, else light) — different from the normalized `/schedule/heat` endpoint. |
 | `PATCH /users/me/push-token` | Yes | Store Expo push token after notification permission granted |
 
 ### 5.3 ICS / Canvas Calendar
@@ -338,16 +338,16 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 | `POST /ics/connect` | Yes | Store ICS URL, trigger initial sync, return `{ synced, courses }` |
 | `POST /ics/sync` | Yes | Manual re-sync; also runs automatically every 6 hours via cron |
 | `GET /ics/status` | Yes | `{ connected: bool, last_synced, course_count, task_count }` |
-| `DELETE /ics/disconnect` | Yes | Remove ICS URL; soft-delete ICS-sourced tasks |
+| `DELETE /ics/disconnect` | Yes | Null out `ics_url`; hard-delete all ICS-sourced tasks and courses → `{ ok: true, tasks_removed: N }` |
 
 ### 5.4 Tasks
 
 | Method + Path | Auth | Description |
 |---------------|------|-------------|
 | `GET /tasks` | Yes | List tasks (query: `?done=false`, `?course_id=`, `?due_before=`, `?limit=`) |
-| `POST /tasks` | Yes | Create manual task; optionally trigger AI subtask breakdown |
-| `PATCH /tasks/:id` | Yes | Toggle done, update title/due_date/weight, set highlighted |
-| `DELETE /tasks/:id` | Yes | Hard delete (manual tasks only); ICS tasks are soft-deleted |
+| `POST /tasks` | Yes | Create manual task `{ title, course_id?, due_date?, weight? }` → task row (source=`'manual'`). Does NOT auto-trigger breakdown; call `POST /tasks/:id/breakdown` separately. |
+| `PATCH /tasks/:id` | Yes | Toggle done, update title/due_date/weight, set highlighted. Updatable fields: `done`, `title`, `due_date`, `weight`, `highlighted`. |
+| `DELETE /tasks/:id` | Yes | Hard delete manual tasks only; returns **403** for ICS/syllabus/ai-sourced tasks |
 | `GET /tasks/:id/subtasks` | Yes | Return Claude-generated subtask breakdown for a task |
 | `POST /tasks/:id/breakdown` | Yes | Trigger Claude to generate subtasks; stores in task_subtasks |
 
@@ -367,16 +367,16 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 |---------------|------|-------------|
 | `POST /chat` | Yes | Send message; returns SSE stream of Claude response + side-effect event |
 | `GET /chat/history` | Yes | Conversation history (query: `?flow=planning&limit=50`) |
-| `DELETE /chat/history` | Yes | Clear history for a given flow mode |
+| `DELETE /chat/history` | Yes | Clear history for a given flow mode. **Requires `?flow=` query param** (one of the 5 valid flows). |
 
 ### 5.7 Syllabus
 
 | Method + Path | Auth | Description |
 |---------------|------|-------------|
 | `POST /syllabus` | Yes | Paste syllabus text `{ course_id, quarter, text }` → Claude extracts tasks synchronously → returns `{ jobId, tasks }` for review |
-| `GET /syllabus/status/:jobId` | Yes | Re-fetch extraction result: `{ status, tasks, parsed_at }` |
-| `POST /syllabus/confirm/:jobId` | Yes | Confirm extracted tasks → inserted into `tasks` (source=`'syllabus'`); full text stored in `syllabi` for RAG |
-| `GET /syllabus` | Yes | List all syllabi with course associations |
+| `GET /syllabus/status/:jobId` | Yes | Re-fetch extraction result: `{ jobId, status, tasks, parsed_at }` |
+| `POST /syllabus/confirm/:jobId` | Yes | Confirm extracted tasks → inserted into `tasks` (source=`'syllabus'`) → `{ inserted: N, jobId }` |
+| `GET /syllabus` | Yes | List all syllabi: `[{ id, course_id, quarter, parse_status, parsed_at, course_name, course_code }]` |
 
 ### 5.8 Major Advising
 
@@ -387,14 +387,14 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 | `POST /goals/major` | Yes | Student declares major intent; creates `student_major_goals` row. Rejects duplicate active goal for same major (app-layer guard). |
 | `GET /goals/major` | Yes | Return all of student's major goals (default: `status=active`). Accepts optional `?status=dropped\|achieved\|all` query param. |
 | `PATCH /goals/major/:id` | Yes | Update `status` (`'dropped'` \| `'achieved'`) or `application_deadline`. |
-| `PATCH /goals/major/:id/checklist` | Yes | Update `checklist_progress` for a step (student or Claude side-effect). |
+| `PATCH /goals/major/:id/checklist` | Yes | Update one checklist step: `{ step_id, completed: bool }` → updated goal row. Note: the REST body uses `completed`; Claude's `update_checklist` side-effect uses `done` (server-side only, not a client field). |
 
 ### 5.9 Session Logging
 
 | Method + Path | Auth | Description |
 |---------------|------|-------------|
 | `POST /sessions/start` | Yes | Create `chat_sessions` row; return `session_id` for this launch |
-| `POST /sessions/event` | Yes | Log a session_event `{ event_type, metadata }` |
+| `POST /sessions/event` | Yes | Log a session_event `{ session_id, event_type, metadata }` — `session_id` required in body |
 | `POST /sessions/end` | Yes | Mark session closed; record duration |
 | `GET /sessions/export` | Admin | CSV export of all session_events for research analysis (admin JWT) |
 

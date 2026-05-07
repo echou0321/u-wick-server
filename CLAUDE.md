@@ -34,7 +34,15 @@ Say "Design Doc loaded." at the start of every session after reading it.
 - `tasks`: `id, user_id, course_id, title, due_date, weight, source, ics_uid, done, highlighted, created_at` — no UNIQUE on `ics_uid`, dedup via SELECT WHERE `user_id + ics_uid`
 - `schedule_blocks`: `id, user_id, course_id, title, start_time, end_time, block_type, source, color, created_at`
 - `chat_sessions`: `id, user_id, flow, platform, app_version, started_at, ended_at, duration_s`
+- `syllabi`: has a `pending_tasks` JSONB column (not in design doc) used to hold extracted tasks before `/confirm`
 - All other tables assume design doc column names until verified
+
+## API Behaviour Notes (deviations from design doc descriptions)
+- `DELETE /tasks/:id` returns **403** for non-manual tasks (ICS/syllabus/ai) — not a soft-delete
+- `PATCH /goals/major/:id/checklist` body: `{ step_id, completed: bool }` — field is `completed`, not `done`
+- `GET /users/me/dashboard` returns `tasks_due_soon` (tasks due in next 48 h), not just today
+- `GET /users/me/dashboard` heat uses absolute thresholds; `/schedule/heat` uses normalized thresholds — both correct, different purposes
+- bcrypt saltRounds in `/auth/register` is **10** (design doc says 12)
 
 ---
 
