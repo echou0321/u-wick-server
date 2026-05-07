@@ -12,7 +12,8 @@ Say "Design Doc loaded." at the start of every session after reading it.
 - No compression middleware — conflicts with SSE streaming on /chat.
 - All code is CommonJS (`require`/`module.exports`). Ignore VS Code "convert to ES module" hint.
 - Hybrid scrape approach: store URLs + parsed data in DB, one-time manual scrape updated each academic year. Claude reads from DB at chat time, never scrapes live.
-- Anthropic API key not yet received — /chat, POST /tasks/:id/breakdown, and syllabus text extraction are blocked until it arrives.
+- Anthropic API key obtained and set in .env + Azure App Service env vars.
+- Syllabus approach: text paste only (no PDF upload). Student pastes raw text → Claude extracts tasks → student confirms. Full text stored in `extracted_text` for RAG injection at chat time.
 
 ---
 
@@ -62,10 +63,14 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `src/routes/tasks.js` — GET /, PATCH /:id, DELETE /:id
 - `src/routes/schedule.js` — GET /, POST /blocks, PATCH /blocks/:id, DELETE /blocks/:id, GET /heat
 - `src/routes/sessions.js` — POST /start, POST /event, POST /end, GET /export (admin)
+- `src/routes/syllabus.js` — POST / (text paste → Claude extract), GET /status/:jobId, POST /confirm/:jobId, GET /
+- `src/routes/chat.js` — POST / (SSE stream, side-effects: add_study_blocks + complete_task), GET /history, DELETE /history
 - `src/routes/majors.js` — GET /, GET /:id
 - `src/routes/goals.js` — POST /major, GET /major, PATCH /major/:id, PATCH /major/:id/checklist
 - `src/lib/icsSync.js` — fetchAndSync(), parseAndUpsert(), findOrCreateCourse(), upsertTask()
 - `src/lib/expoPush.js` — sendPush(token, title, body, data) — fires to Expo push API; data field enables deep linking
+- `src/lib/syllabusExtract.js` — extractTasksWithClaude(text, courseName) — claude-haiku-4-5 extracts structured task list from pasted syllabus text
+- `src/lib/chatContext.js` — buildSystemPrompt(userId, flow) — assembles dynamic system prompt from 6 DB tables (user, courses, tasks, schedule, syllabi, major goals)
 - `src/middleware/auth.js` — requireAuth (JWT verify); requireAdmin (ADMIN_EMAIL check); sets `req.user = { id, email }`
 - `src/middleware/logger.js` — logEvent() fire-and-forget INSERT into session_events
 - `src/jobs/icsResync.js` — every 6h, re-syncs all users with ics_url set
@@ -78,16 +83,17 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `tests/majors.test.js` — 8 tests, all passing
 - `tests/goals.test.js` — 20 tests, all passing
 - `tests/users.test.js` — 10 tests, all passing
+- `tests/syllabus.test.js` — 16 tests, all passing
+- `tests/chat.test.js` — 15 tests, all passing (Anthropic SDK mocked)
 - `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-05-01
 
 ## What's Next (in order)
-1. **One-time major scraper** — populate `major_requirements` table with 6 UW programs (Cheerio + Axios); fully unblocked
-2. **Syllabus upload pipeline** — POST /syllabus/upload, GET /syllabus/status/:jobId, POST /syllabus/confirm/:jobId, GET /syllabus + tests; needs multer, @azure/storage-blob, @azure/ai-form-recognizer; Claude extraction step blocked on API key
-3. **Chat route** — POST /chat (SSE), GET /chat/history, DELETE /chat/history — blocked on Anthropic API key
+- **Remaining chat side-effects** — `breakdown_task`, `add_task`, `schedule_alert`, `update_checklist`, `set_notif_active` — deferred to next session (currently only `add_study_blocks` + `complete_task` are wired)
+- **Frontend integration and user study prep**
 
 ---
 
 ## Dependencies Installed
-`axios, bcryptjs, cors, dotenv, express, ical.js, jsonwebtoken, node-cron, pg, jest (dev), supertest (dev)`
+`axios, bcryptjs, cors, dotenv, express, ical.js, jsonwebtoken, node-cron, pg, @anthropic-ai/sdk, jest (dev), supertest (dev)`
 
-Not yet installed (add when needed): `multer, @anthropic-ai/sdk, @azure/storage-blob, @azure/ai-form-recognizer, cheerio`
+Not yet installed (add when needed): `multer, @azure/storage-blob, @azure/ai-form-recognizer, cheerio`

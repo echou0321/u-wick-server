@@ -52,11 +52,10 @@ U-Wick extends that foundation with a conversational AI layer powered by Anthrop
 | Frontend | React Native + Expo | RN 0.81 / Expo 54 | Managed workflow; iOS + Android |
 | Routing | Expo Router | v6 | File-based; (onboarding) + (tabs) groups |
 | API Server | Node.js + Express | Node 20 LTS | REST + SSE streaming |
-| AI Chatbot | Anthropic Claude API | claude-sonnet-4-20250514 | Server-side only; key never exposed to client |
+| AI Chatbot | Anthropic Claude API | claude-sonnet-4-6 (chat), claude-haiku-4-5-20251001 (syllabus extraction) | Server-side only; key never exposed to client |
 | Database | PostgreSQL | Azure Database for PostgreSQL Flexible Server | All persistent state |
 | Authentication | bcrypt + JWT | jsonwebtoken + bcryptjs (npm) | Email/password; JWT signed with JWT_SECRET env var |
-| File Storage | Azure Blob Storage | Standard LRS | Syllabus PDF uploads; private container |
-| PDF Parsing | Azure Document Intelligence | 2024-02-29-preview | Text extraction from syllabus PDFs |
+| File Storage | Azure Blob Storage | Standard LRS | Available but not used for syllabus (text-paste approach) |
 | ICS Parsing | ical.js (npm) | 1.5.0 | Parse Canvas calendar feed |
 | Web Scraping | Cheerio + Axios | Latest | One-time scrape of UW major requirement pages |
 | Scheduling / Jobs | node-cron | 3.x | Proactive notification background jobs |
@@ -83,9 +82,9 @@ PostgreSQL  Claude API  ICS Feed   Azure Blob  node-cron  Expo Push
 
 Every chat turn follows this sequence. This is the most performance-sensitive path in the system.
 
-1. Client sends `POST /api/chat  { message, flow, conversationHistory }` with JWT header
+1. Client sends `POST /api/chat  { message, flow }` with JWT header
 2. Express JWT middleware validates token signature using `JWT_SECRET`; checks expiry
-3. Server loads user context from PostgreSQL: tasks due soon, schedule blocks, active courses, current quarter syllabi
+3. Server loads user context from PostgreSQL: tasks due soon, schedule blocks, active courses, current quarter syllabi. Server also loads conversation history from `chat_messages` (last 20 messages for the given flow).
 4. Server assembles dynamic Claude system prompt: role definition + injected user context + active flow instructions + side-effect JSON schema
 5. Claude API call made server-side; response streamed back to client via Server-Sent Events
 6. Server parses structured side-effect JSON block from Claude response (e.g., `add_study_blocks`, `breakdown_task`)
@@ -131,6 +130,7 @@ PostgreSQL hosted on Azure Database for PostgreSQL Flexible Server. All primary 
 | syllabi | Raw extracted text per course per quarter; used for RAG Q&A |
 | major_requirements | Scraped UW capacity-constrained major data: prereqs, deadlines, steps |
 | student_major_goals | Student's declared major intent(s) + application deadline + checklist progress; multiple active goals supported |
+| chat_messages | Persistent conversation history per user per flow; used for Claude context injection |
 | chat_sessions | One row per app session; links to session_events |
 | session_events | Granular interaction log for user study analysis |
 | notifications | Scheduled proactive alerts: type, scheduled_for, delivered_at, dismissed_at |
@@ -281,6 +281,16 @@ metadata        JSONB                             -- event-specific payload (no 
 occurred_at     TIMESTAMPTZ DEFAULT now()
 ```
 
+#### chat_messages
+```sql
+id         UUID PRIMARY KEY DEFAULT gen_random_uuid()
+user_id    UUID REFERENCES users(id) ON DELETE CASCADE
+flow       TEXT NOT NULL DEFAULT 'free'           -- 'planning' | 'proactive' | 'advising' | 'quarter_planning' | 'free'
+role       TEXT NOT NULL                          -- 'user' | 'assistant'
+content    TEXT NOT NULL                          -- assistant messages have <side_effects> block stripped
+created_at TIMESTAMPTZ DEFAULT now()
+```
+
 #### notifications
 ```sql
 id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -363,10 +373,10 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 
 | Method + Path | Auth | Description |
 |---------------|------|-------------|
-| `POST /syllabus/upload` | Yes | Upload PDF (multipart); returns `{ jobId }`; triggers async extract |
-| `GET /syllabus/status/:jobId` | Yes | Poll extraction status: `pending \| extracting \| ready \| failed` |
-| `POST /syllabus/confirm/:jobId` | Yes | Confirm extracted tasks + store full text in syllabi table |
-| `GET /syllabus` | Yes | List all syllabi for current quarter with course associations |
+| `POST /syllabus` | Yes | Paste syllabus text `{ course_id, quarter, text }` → Claude extracts tasks synchronously → returns `{ jobId, tasks }` for review |
+| `GET /syllabus/status/:jobId` | Yes | Re-fetch extraction result: `{ status, tasks, parsed_at }` |
+| `POST /syllabus/confirm/:jobId` | Yes | Confirm extracted tasks → inserted into `tasks` (source=`'syllabus'`); full text stored in `syllabi` for RAG |
+| `GET /syllabus` | Yes | List all syllabi with course associations |
 
 ### 5.8 Major Advising
 
@@ -392,7 +402,7 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 
 ## 6. Claude AI Integration
 
-The Claude API (`claude-sonnet-4-20250514`) is the intelligence layer for all chat interactions. All API calls are made exclusively server-side. The Anthropic API key is stored as an Azure App Service environment variable and is never transmitted to the client.
+The Claude API (`claude-sonnet-4-6`) is the intelligence layer for all chat interactions. All API calls are made exclusively server-side. The Anthropic API key is stored as an Azure App Service environment variable and is never transmitted to the client.
 
 ### 6.1 Dynamic System Prompt Architecture
 
@@ -428,32 +438,23 @@ SYSTEM PROMPT STRUCTURE (assembled per request)
 
 ### 6.3 Structured Side-Effects
 
-Claude is instructed via the system prompt to append a JSON block at the end of responses that require real-world actions. The server parses this block after streaming completes and applies the corresponding database mutations.
+Claude is instructed via the system prompt to wrap side-effect JSON in `<side_effects>...</side_effects>` tags at the end of responses that require real-world actions. The server strips this block from the stored assistant message and applies the corresponding database mutations.
 
-| Action | DB Mutation | Frontend Effect |
-|--------|-------------|-----------------|
-| `add_study_blocks` | INSERT into `schedule_blocks` (source = `ai_generated`) | Calendar UI refreshes; heat map score recalculates |
-| `breakdown_task` | INSERT into `task_subtasks` for given `task_id` | Task row expands to show subtask checklist |
-| `complete_task` | UPDATE `tasks SET done = true` | Task moves to completed section |
-| `add_task` | INSERT into `tasks` (source = `ai`) | New task appears in pending list |
-| `schedule_alert` | INSERT into `notifications` (type, scheduled_for) | Notification queued for background delivery |
-| `update_checklist` | UPDATE `student_major_goals` `checklist_progress` WHERE `id = goal_id` | Major advising checklist updates in UI (`goal_id` required in payload) |
-| `set_notif_active` | UPDATE `users SET notif_active = true` | Notification permission flow triggered on client |
+| Action | DB Mutation | Frontend Effect | Status |
+|--------|-------------|-----------------|--------|
+| `add_study_blocks` | INSERT into `schedule_blocks` (source = `ai_generated`) | Calendar UI refreshes; heat map score recalculates | ✅ Implemented |
+| `complete_task` | UPDATE `tasks SET done = true` | Task moves to completed section | ✅ Implemented |
+| `breakdown_task` | INSERT into `task_subtasks` for given `task_id` | Task row expands to show subtask checklist | 🔲 Pending |
+| `add_task` | INSERT into `tasks` (source = `ai`) | New task appears in pending list | 🔲 Pending |
+| `schedule_alert` | INSERT into `notifications` (type, scheduled_for) | Notification queued for background delivery | 🔲 Pending |
+| `update_checklist` | UPDATE `student_major_goals` `checklist_progress` WHERE `id = goal_id` | Major advising checklist updates in UI (`goal_id` required in payload) | 🔲 Pending |
+| `set_notif_active` | UPDATE `users SET notif_active = true` | Notification permission flow triggered on client | 🔲 Pending |
 
 **Side-Effect Envelope Example:**
-```json
-{
-  "action": "add_study_blocks",
-  "payload": [
-    {
-      "title": "Study: MATH 126 Midterm",
-      "start": "2026-04-23T14:00:00-07:00",
-      "end": "2026-04-23T16:00:00-07:00",
-      "block_type": "study",
-      "color": "#6AF7C8"
-    }
-  ]
-}
+```
+<side_effects>
+{ "action": "add_study_blocks", "payload": [{ "title": "Study: MATH 126 Midterm", "start": "2026-04-23T14:00:00-07:00", "end": "2026-04-23T16:00:00-07:00", "block_type": "study", "color": "#6AF7C8" }] }
+</side_effects>
 ```
 
 ### 6.4 Streaming Response (SSE)
@@ -462,9 +463,12 @@ Claude is instructed via the system prompt to append a JSON block at the end of 
 
 ```
 data: { type: 'token',        content: '...' }   -- streamed text chunk
-data: { type: 'side_effects', actions: [...] }   -- parsed action block
+data: { type: 'side_effects', actions: {...} }   -- parsed action block (only present if Claude triggered one)
 data: { type: 'done' }                           -- stream complete
+data: { type: 'error',        message: '...' }   -- only on Claude failure (headers already sent)
 ```
+
+Conversation history is stored server-side in the `chat_messages` table. The server loads the last 20 messages for the given flow and passes them to Claude on every request — the client sends only `{ message, flow }`, not the full history.
 
 ### 6.5 Syllabus RAG (Q&A Memory)
 
@@ -657,17 +661,15 @@ async function logEvent(userId, sessionId, eventType, metadata = {}) {
 
 ---
 
-## 11. Syllabus Upload & Parsing Pipeline
+## 11. Syllabus Text Extraction Pipeline
 
-1. Student selects PDF via Expo Document Picker → `POST /api/syllabus/upload` (multipart/form-data)
-2. Server validates: PDF MIME type only, max 10 MB. Uploads to Azure Blob Storage. Returns `{ jobId }`.
-3. Async job: Azure Document Intelligence extracts raw text from all PDF pages
-4. Extracted text passed to Claude: extract all assignments, exams, quizzes, and due dates as `[{ title, due_date, type, weight_hint }]`. Also return full syllabus text verbatim.
-5. Server validates date formats, normalizes to UTC. Job status set to `'ready'`.
-6. Frontend polls `GET /api/syllabus/status/:jobId` until ready.
-7. Student reviews extracted task list. `POST /api/syllabus/confirm/:jobId` → tasks inserted (source = `'syllabus'`); full text stored in `syllabi` table for RAG.
+1. Student copies their syllabus text and pastes it in the app → `POST /api/syllabus  { course_id, quarter, text }`
+2. Server verifies the course belongs to the user.
+3. Claude (`claude-haiku-4-5-20251001`) synchronously extracts all assignments, exams, quizzes, and due dates as `[{ title, due_date, type, weight }]`. Full text is stored verbatim in `extracted_text` for RAG.
+4. Extracted task list stored in `pending_tasks` (JSONB). Response returns `{ jobId, tasks }` immediately.
+5. Student reviews the task list in the app. `POST /api/syllabus/confirm/:jobId` → tasks inserted into `tasks` table (source = `'syllabus'`); full text already persisted for RAG Q&A.
 
-> ⚠️ Expo Document Picker and real file handling are not yet implemented in the frontend prototype. This is a required frontend addition before the syllabus pipeline can be tested end-to-end.
+> ℹ️ No PDF upload or Azure Document Intelligence required. The `blob_url` column in `syllabi` is retained in the schema but unused. The text-paste approach removes the need for `multer`, `@azure/storage-blob`, and `@azure/ai-form-recognizer`.
 
 ---
 
