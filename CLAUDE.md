@@ -65,18 +65,14 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 ---
 
 ## What's Built
-- `src/routes/auth.js` — POST /register, POST /login
-- `src/routes/users.js` — GET /me, PATCH /me, POST /me/onboarding/complete, PATCH /me/push-token
-- `src/routes/ics.js` — POST /connect, POST /sync, GET /status
-- `src/routes/tasks.js` — GET /, PATCH /:id, DELETE /:id
-- `src/routes/schedule.js` — GET /, POST /blocks, PATCH /blocks/:id, DELETE /blocks/:id, GET /heat
-- `src/routes/sessions.js` — POST /start, POST /event, POST /end, GET /export (admin)
-- `src/routes/syllabus.js` — POST / (text paste → Claude extract), GET /status/:jobId, POST /confirm/:jobId, GET /
-- `src/routes/chat.js` — POST / (SSE stream, side-effects: add_study_blocks + complete_task), GET /history, DELETE /history
 - `src/routes/auth.js` — POST /register, POST /login, DELETE /logout
 - `src/routes/users.js` — GET /me, GET /me/dashboard, PATCH /me, POST /me/onboarding/complete, PATCH /me/push-token
 - `src/routes/ics.js` — POST /connect, POST /sync, GET /status, DELETE /disconnect
 - `src/routes/tasks.js` — GET /, POST /, PATCH /:id, DELETE /:id, GET /:id/subtasks, POST /:id/breakdown
+- `src/routes/schedule.js` — GET /, POST /blocks, PATCH /blocks/:id, DELETE /blocks/:id, GET /heat
+- `src/routes/sessions.js` — POST /start, POST /event, POST /end, GET /export (admin)
+- `src/routes/syllabus.js` — POST / (text paste → Claude extract), GET /status/:jobId, POST /confirm/:jobId, GET /
+- `src/routes/chat.js` — POST / (SSE stream, all 7 side-effects wired), GET /history, DELETE /history
 - `src/routes/majors.js` — GET /, GET /:id
 - `src/routes/goals.js` — POST /major, GET /major, PATCH /major/:id, PATCH /major/:id/checklist
 - `src/lib/icsSync.js` — fetchAndSync(), parseAndUpsert(), findOrCreateCourse(), upsertTask()
@@ -94,7 +90,7 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `tests/sessions.test.js` — 20 tests, all passing
 - `tests/majors.test.js` — 8 tests, all passing
 - `tests/goals.test.js` — 20 tests, all passing
-- `tests/users.test.js` — 10 tests, all passing
+- `tests/users.test.js` — 13 tests, all passing
 - `tests/syllabus.test.js` — 16 tests, all passing
 - `tests/auth.test.js` — 8 tests, all passing
 - `tests/ics.test.js` — 9 tests, all passing
