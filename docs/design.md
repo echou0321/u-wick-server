@@ -751,11 +751,13 @@ CANVAS_TOKEN_ENCRYPT_KEY  # AES-256 key for any stored tokens
 | Week 1 Days 3–5 | Auth + User | POST /auth/register, POST /auth/login, JWT middleware, GET/PATCH /users/me, onboarding endpoint | ✅ Complete |
 | Week 2 Days 1–2 | ICS + Tasks | POST /ics/connect, ical.js parsing, task + course upsert, GET/PATCH/DELETE /tasks | ✅ Complete |
 | Week 2 Days 3–5 | Schedule | All schedule routes + heat map + Jest test suite | ✅ Complete |
-| Next | Session Logging | POST /sessions/start, POST /sessions/event, POST /sessions/end, GET /sessions/export | 🔲 Next |
-| — | Major Advising | GET /majors, GET /majors/:id, goals routes | 🔲 Pending |
-| — | Syllabus Pipeline | Upload → Doc Intelligence → Claude extract → confirm | 🔲 Pending |
-| — | Cron + Push | ICS re-sync, start-this-now, morning digest, major reminders, push token route | 🔲 Pending |
-| — | Chat | POST /chat SSE + system prompt assembly + side-effect parser | 🔲 Blocked (API key) |
+| — | Session Logging | POST /sessions/start, POST /sessions/event, POST /sessions/end, GET /sessions/export | ✅ Complete |
+| — | Major Advising | GET /majors, GET /majors/:id, goals routes | ✅ Complete |
+| — | Syllabus Pipeline | Text paste → Claude haiku extract → confirm | ✅ Complete |
+| — | Cron + Push | ICS re-sync, start-this-now, morning digest, major reminders, push token route | ✅ Complete |
+| — | Chat | POST /chat SSE + system prompt + all 7 side-effects; GET/DELETE /history | ✅ Complete |
+| — | Remaining routes | DELETE /logout, DELETE /ics/disconnect, GET /me/dashboard, POST /tasks, GET+POST /tasks/:id/subtasks+breakdown | ✅ Complete |
+| Now | Frontend Integration | Wire React Native app to live API | 🔲 In Progress |
 
 ---
 
