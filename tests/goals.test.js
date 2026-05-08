@@ -124,6 +124,7 @@ describe('GET /api/goals/major', () => {
     expect(match.major_name).toBe('Test CS');
     expect(match.department).toBe('Allen School');
     expect(match.status).toBe('active');
+    expect(Number(match.min_gpa)).toBeCloseTo(3.2, 5);
   });
 
   it('200 status=all includes all goals', async () => {
