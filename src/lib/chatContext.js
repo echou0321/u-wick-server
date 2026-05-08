@@ -8,19 +8,44 @@ const FLOW_INSTRUCTIONS = {
   free: 'You are in FREE mode. Handle open-ended questions: am I on track, what should I study tonight, workload check-ins.',
 };
 
-const SIDE_EFFECT_SCHEMA = `When you want to add study blocks or mark a task complete, append this block at the very end of your response — after all conversational text:
+const SIDE_EFFECT_SCHEMA = `You can take real actions by appending a <side_effects> block at the very end of your response — after all conversational text. Use the action that matches what you are doing. Only one action per response.
 
+Add study blocks to the calendar:
 <side_effects>
 { "action": "add_study_blocks", "payload": [{ "title": "Study: MATH 126", "start": "2026-05-10T14:00:00-07:00", "end": "2026-05-10T16:00:00-07:00", "block_type": "study", "color": "#6AF7C8" }] }
 </side_effects>
 
-OR
+Add a new task to the student's task list:
+<side_effects>
+{ "action": "add_task", "payload": { "title": "Finish capstone prototype", "due_date": "2026-05-11T23:59:00-07:00", "weight": 3.0 } }
+</side_effects>
 
+Mark a task as complete (use task_id from the task list above):
 <side_effects>
 { "action": "complete_task", "payload": { "task_id": "<uuid>" } }
 </side_effects>
 
-Only include <side_effects> when you are actually scheduling a block or marking a task done. Omit it entirely for normal conversational responses.`;
+Break a task into subtasks (use task_id from the task list above):
+<side_effects>
+{ "action": "breakdown_task", "payload": { "task_id": "<uuid>", "subtasks": [{ "title": "Outline the report", "suggested_start": null }, { "title": "Write draft", "suggested_start": "2026-05-09T10:00:00-07:00" }] } }
+</side_effects>
+
+Schedule a reminder notification:
+<side_effects>
+{ "action": "schedule_alert", "payload": { "type": "deadline_reminder", "title": "Capstone prototype due tomorrow", "body": "Make sure to submit your prototype!", "scheduled_for": "2026-05-10T08:00:00-07:00" } }
+</side_effects>
+
+Mark a major application checklist step complete (use goal_id from major goals above):
+<side_effects>
+{ "action": "update_checklist", "payload": { "goal_id": "<uuid>", "step_id": "step_1", "done": true } }
+</side_effects>
+
+Enable push notifications for this student:
+<side_effects>
+{ "action": "set_notif_active" }
+</side_effects>
+
+Omit <side_effects> entirely for normal conversational responses that don't require a real action.`;
 
 const GUARDRAILS = `Guardrails: Stay focused on academic planning. Do not give medical or legal advice. If a student mentions mental health struggles, acknowledge warmly and suggest the UW Counseling Center.`;
 
