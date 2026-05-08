@@ -78,7 +78,7 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `src/lib/icsSync.js` — fetchAndSync(), parseAndUpsert(), findOrCreateCourse(), upsertTask()
 - `src/lib/expoPush.js` — sendPush(token, title, body, data) — fires to Expo push API; data field enables deep linking
 - `src/lib/syllabusExtract.js` — extractTasksWithClaude(text, courseName) — claude-haiku-4-5 extracts structured task list from pasted syllabus text
-- `src/lib/chatContext.js` — buildSystemPrompt(userId, flow) — assembles dynamic system prompt from 6 DB tables (user, courses, tasks, schedule, syllabi, major goals)
+- `src/lib/chatContext.js` — buildSystemPrompt(userId, flow) — assembles dynamic system prompt from 6 DB tables (user, courses, tasks, schedule, syllabi, major goals); SIDE_EFFECT_SCHEMA exposes all 7 actions to Claude
 - `src/middleware/auth.js` — requireAuth (JWT verify); requireAdmin (ADMIN_EMAIL check); sets `req.user = { id, email }`
 - `src/middleware/logger.js` — logEvent() fire-and-forget INSERT into session_events
 - `src/jobs/icsResync.js` — every 6h, re-syncs all users with ics_url set
