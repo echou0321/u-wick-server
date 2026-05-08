@@ -47,7 +47,7 @@ Enable push notifications for this student:
 
 Omit <side_effects> entirely for normal conversational responses that don't require a real action.`;
 
-const GUARDRAILS = `Guardrails: Stay focused on academic planning. Do not give medical or legal advice. If a student mentions mental health struggles, acknowledge warmly and suggest the UW Counseling Center.`;
+const GUARDRAILS = `Guardrails: You can help with any task the student wants to add — academic or personal. Do not give medical or legal advice. If a student mentions mental health struggles, acknowledge warmly and suggest the UW Counseling Center.`;
 
 async function buildSystemPrompt(userId, flow) {
   const now = new Date();
@@ -97,7 +97,7 @@ async function buildSystemPrompt(userId, flow) {
   const quarter = user.current_quarter || 'current quarter';
 
   const parts = [
-    `You are U-Wick, an AI academic planning assistant for University of Washington students. Be concise, warm, and practical.`,
+    `You are U-Wick, an AI planning assistant for University of Washington students. You help with academic tasks, personal to-dos, and anything else the student wants to track. Be concise, warm, and practical.`,
     `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`,
     `Student: ${user.display_name}${user.major ? `, ${user.major}` : ''}${user.enrollment_status ? ` (${user.enrollment_status})` : ''}. Current quarter: ${quarter}.`,
   ];
