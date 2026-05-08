@@ -31,7 +31,7 @@ Say "Design Doc loaded." at the start of every session after reading it.
 
 ## DB Schema Deviations (actual columns differ from design doc)
 - `courses`: `id, user_id, name, code, quarter, color, source, created_at` — column is `name` not `title`; no UNIQUE constraint on `(user_id, name)`, dedup via SELECT-first
-- `tasks`: `id, user_id, course_id, title, due_date, weight, source, ics_uid, done, highlighted, created_at` — no UNIQUE on `ics_uid`, dedup via SELECT WHERE `user_id + ics_uid`
+- `tasks`: `id, user_id, course_id, title, due_date, weight, source, ics_uid, done, highlighted, tag, created_at` — no UNIQUE on `ics_uid`, dedup via SELECT WHERE `user_id + ics_uid`; `tag` is `VARCHAR(32)` AI-generated 1–2 word label, auto-populated synchronously on `POST /tasks` (manual only), included in all GET responses, patchable via `PATCH /tasks/:id`
 - `schedule_blocks`: `id, user_id, course_id, title, start_time, end_time, block_type, source, color, created_at`
 - `chat_sessions`: `id, user_id, flow, platform, app_version, started_at, ended_at, duration_s`
 - `syllabi`: has a `pending_tasks` JSONB column (not in design doc) used to hold extracted tasks before `/confirm`
@@ -94,7 +94,7 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `tests/syllabus.test.js` — 16 tests, all passing
 - `tests/auth.test.js` — 8 tests, all passing
 - `tests/ics.test.js` — 9 tests, all passing
-- `tests/tasks.test.js` — 18 tests, all passing (Anthropic SDK mocked for breakdown)
+- `tests/tasks.test.js` — 23 tests, all passing (Anthropic SDK mocked; routes by max_tokens: ≤16 → tag, >16 → breakdown)
 - `tests/chat.test.js` — 24 tests, all passing (Anthropic SDK mocked; all 7 side-effects covered)
 - `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-05-07
 

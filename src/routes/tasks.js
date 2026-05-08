@@ -30,7 +30,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     const where = conditions.join(' AND ');
 
     const result = await db.query(
-      `SELECT id, course_id, title, due_date, weight, source, ics_uid, done, highlighted, created_at
+      `SELECT id, course_id, title, due_date, weight, source, ics_uid, done, highlighted, tag, created_at
        FROM tasks
        WHERE ${where}
        ORDER BY due_date ASC NULLS LAST
@@ -63,14 +63,34 @@ router.post('/', requireAuth, async (req, res, next) => {
        VALUES ($1, $2, $3, $4, $5, 'manual') RETURNING *`,
       [req.user.id, course_id || null, title.trim(), due_date || null, weight || 1.0]
     );
-    res.status(201).json(rows[0]);
+    const task = rows[0];
+
+    try {
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 16,
+        messages: [{
+          role: 'user',
+          content: `Give a 1-2 word category label for this task: "${title.trim()}". Reply with only the label, no punctuation.`,
+        }],
+      });
+      const tag = msg.content[0].text.trim().slice(0, 32) || null;
+      if (tag) {
+        await db.query('UPDATE tasks SET tag = $1 WHERE id = $2', [tag, task.id]);
+        task.tag = tag;
+      }
+    } catch (_) {
+      // tag generation failure is non-fatal
+    }
+
+    res.status(201).json(task);
   } catch (err) {
     next(err);
   }
 });
 
 // PATCH /api/tasks/:id
-const TASK_ALLOWLIST = ['done', 'title', 'due_date', 'weight', 'highlighted'];
+const TASK_ALLOWLIST = ['done', 'title', 'due_date', 'weight', 'highlighted', 'tag'];
 
 router.patch('/:id', requireAuth, async (req, res, next) => {
   try {

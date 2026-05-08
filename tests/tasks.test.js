@@ -10,8 +10,15 @@ const mockBreakdownSubtasks = [
 jest.mock('@anthropic-ai/sdk', () =>
   jest.fn().mockImplementation(() => ({
     messages: {
-      create: jest.fn().mockResolvedValue({
-        content: [{ type: 'text', text: JSON.stringify(mockBreakdownSubtasks) }],
+      create: jest.fn().mockImplementation((params) => {
+        if (params.max_tokens <= 16) {
+          // tag generation call
+          return Promise.resolve({ content: [{ type: 'text', text: 'Essay' }] });
+        }
+        // breakdown call
+        return Promise.resolve({
+          content: [{ type: 'text', text: JSON.stringify(mockBreakdownSubtasks) }],
+        });
       }),
       stream: jest.fn(),
     },
@@ -98,7 +105,7 @@ describe('POST /api/tasks', () => {
     expect(res.status).toBe(404);
   });
 
-  it('201 creates a manual task', async () => {
+  it('201 creates a manual task with AI-generated tag', async () => {
     const res = await request(app)
       .post('/api/tasks')
       .set('Authorization', `Bearer ${token}`)
@@ -107,6 +114,8 @@ describe('POST /api/tasks', () => {
     expect(res.body.title).toBe('Finish essay draft');
     expect(res.body.source).toBe('manual');
     expect(parseFloat(res.body.weight)).toBe(2.5);
+    expect(res.body).toHaveProperty('tag');
+    expect(typeof res.body.tag === 'string' || res.body.tag === null).toBe(true);
     createdTaskIds.push(res.body.id);
   });
 });
@@ -154,6 +163,15 @@ describe('PATCH /api/tasks/:id', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ done: true });
     expect(res.status).toBe(404);
+  });
+
+  it('200 updates tag field', async () => {
+    const res = await request(app)
+      .patch(`/api/tasks/${taskId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tag: 'Reading' });
+    expect(res.status).toBe(200);
+    expect(res.body.tag).toBe('Reading');
   });
 });
 

@@ -180,6 +180,7 @@ source          TEXT                              -- 'ics' | 'syllabus' | 'manua
 ics_uid         TEXT                              -- Canvas UID for deduplication
 done            BOOLEAN DEFAULT false
 highlighted     BOOLEAN DEFAULT false
+tag             VARCHAR(32)                       -- AI-generated 1-2 word category label (manual tasks only; null for ICS/syllabus/ai)
 created_at      TIMESTAMPTZ DEFAULT now()
 -- No UNIQUE constraint on ics_uid — dedup via SELECT WHERE user_id + ics_uid in app layer
 ```
@@ -344,9 +345,9 @@ All routes require `Authorization: Bearer {jwt}` unless marked **Public**. All b
 
 | Method + Path | Auth | Description |
 |---------------|------|-------------|
-| `GET /tasks` | Yes | List tasks (query: `?done=false`, `?course_id=`, `?due_before=`, `?limit=`) |
-| `POST /tasks` | Yes | Create manual task `{ title, course_id?, due_date?, weight? }` → task row (source=`'manual'`). Does NOT auto-trigger breakdown; call `POST /tasks/:id/breakdown` separately. |
-| `PATCH /tasks/:id` | Yes | Toggle done, update title/due_date/weight, set highlighted. Updatable fields: `done`, `title`, `due_date`, `weight`, `highlighted`. |
+| `GET /tasks` | Yes | List tasks (query: `?done=false`, `?course_id=`, `?due_before=`, `?limit=`). Response includes `tag` field (string or null). |
+| `POST /tasks` | Yes | Create manual task `{ title, course_id?, due_date?, weight? }` → task row (source=`'manual'`). Synchronously calls `claude-haiku-4-5-20251001` to generate a 1–2 word `tag`; returns task with `tag` populated (or `null` on AI failure). Does NOT auto-trigger breakdown; call `POST /tasks/:id/breakdown` separately. |
+| `PATCH /tasks/:id` | Yes | Toggle done, update title/due_date/weight, set highlighted, update tag. Updatable fields: `done`, `title`, `due_date`, `weight`, `highlighted`, `tag`. |
 | `DELETE /tasks/:id` | Yes | Hard delete manual tasks only; returns **403** for ICS/syllabus/ai-sourced tasks |
 | `GET /tasks/:id/subtasks` | Yes | Return Claude-generated subtask breakdown for a task |
 | `POST /tasks/:id/breakdown` | Yes | Trigger Claude to generate subtasks; stores in task_subtasks |
