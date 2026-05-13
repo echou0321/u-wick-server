@@ -2,6 +2,7 @@ require('dotenv').config();
 const request = require('supertest');
 const app = require('../src/app');
 const db = require('../src/db');
+const { parseAndUpsert } = require('../src/lib/icsSync');
 
 const TEST_EMAIL = 'test@uw.edu';
 const TEST_PASSWORD = 'password123';
@@ -28,6 +29,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.query('DELETE FROM courses WHERE id = $1', [testCourseId]);
+  await db.query("DELETE FROM tasks WHERE user_id = $1 AND source = 'ics'", [userId]);
+  await db.query("DELETE FROM courses WHERE user_id = $1 AND source = 'ics'", [userId]);
   await db.end();
 });
 
@@ -60,6 +63,60 @@ describe('GET /api/courses', () => {
     expect(course.quarter).toBe('Spring 2026');
     expect(course.color).toBe('#AABBCC');
     expect(course.source).toBe('manual');
+  });
+
+  it('200 includes ICS courses created by parseAndUpsert', async () => {
+    const icsText = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      // Event 1: course code only in DESCRIPTION (Canvas personal feed format)
+      'BEGIN:VEVENT',
+      'UID:parse-test-001@canvas.uw.edu',
+      'SUMMARY:Homework 3',
+      'DESCRIPTION:CSE 123: Data Programming\\nDue: April 15 at 11:59pm',
+      'DTSTART;VALUE=DATE:20260415',
+      'CATEGORIES:assignment',
+      'END:VEVENT',
+      // Event 2: course code in SUMMARY prefix with colon
+      'BEGIN:VEVENT',
+      'UID:parse-test-002@canvas.uw.edu',
+      'SUMMARY:INFO 201: Final Paper',
+      'DESCRIPTION:Due at end of quarter',
+      'DTSTART;VALUE=DATE:20260610',
+      'END:VEVENT',
+      // Event 3: no course code anywhere → task with course_id null
+      'BEGIN:VEVENT',
+      'UID:parse-test-003@canvas.uw.edu',
+      'SUMMARY:Generic Event',
+      'DESCRIPTION:No course code here',
+      'DTSTART;VALUE=DATE:20260501',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    const { synced, courses } = await parseAndUpsert(userId, icsText, 'Spring 2026');
+
+    expect(synced).toBe(3);
+    // Should have extracted exactly 2 distinct course names
+    expect(courses).toHaveLength(2);
+    expect(courses).toContain('CSE 123');
+    expect(courses).toContain('INFO 201');
+
+    // GET /courses should now include both ICS-derived courses
+    const res = await request(app)
+      .get('/api/courses')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    const names = res.body.map((c) => c.name);
+    expect(names).toContain('CSE 123');
+    expect(names).toContain('INFO 201');
+
+    // The no-course-code task should have course_id = null
+    const { rows } = await db.query(
+      "SELECT course_id FROM tasks WHERE user_id = $1 AND ics_uid = 'parse-test-003@canvas.uw.edu'",
+      [userId],
+    );
+    expect(rows[0].course_id).toBeNull();
   });
 
   it('200 does not return courses belonging to other users', async () => {

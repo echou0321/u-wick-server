@@ -57,15 +57,28 @@ async function parseAndUpsert(userId, icsText, userQuarter) {
     const dtstart = vevent.getFirstPropertyValue('dtstart');
     const dueDate = dtstart ? dtstart.toJSDate() : null;
 
-    // Try to derive a course name from CATEGORIES or summary prefix
+    // Derive course name: CATEGORIES → summary prefix → description
     let courseName = null;
+
+    // 1. CATEGORIES — only use if the value looks like a course code (e.g. "CSE 123"),
+    //    not generic strings like "assignment" that Canvas puts here
     const categories = vevent.getFirstPropertyValue('categories');
     if (categories) {
-      courseName = Array.isArray(categories) ? categories[0] : String(categories);
+      const cat = Array.isArray(categories) ? categories[0] : String(categories);
+      if (/^[A-Z]{2,5} \d{3}/.test(cat)) courseName = cat;
     }
+
+    // 2. Summary prefix: "CSE 123 - Title" or "CSE 123: Title"
     if (!courseName) {
-      // Canvas puts "COURSE 123 - Assignment Title"
-      const match = summary.match(/^([A-Z]+ \d+[A-Z]?)\s*[-–]/);
+      const match = summary.match(/^([A-Z]{2,5} \d{3}[A-Z]?)\s*[-–:]/);
+      if (match) courseName = match[1];
+    }
+
+    // 3. Description fallback — Canvas personal feeds embed the course code in
+    //    DESCRIPTION (e.g. "CSE 123: Data Programming\nDue: ...") rather than SUMMARY
+    if (!courseName) {
+      const description = vevent.getFirstPropertyValue('description') || '';
+      const match = description.match(/\b([A-Z]{2,5} \d{3}[A-Z]?)\b/);
       if (match) courseName = match[1];
     }
 
