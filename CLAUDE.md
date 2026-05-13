@@ -67,6 +67,7 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 ## What's Built
 - `src/routes/auth.js` — POST /register, POST /login, DELETE /logout
 - `src/routes/users.js` — GET /me, GET /me/dashboard, PATCH /me, POST /me/onboarding/complete, PATCH /me/push-token
+- `src/routes/courses.js` — GET / (returns user's courses; used for syllabus picker and Profile → My Courses)
 - `src/routes/ics.js` — POST /connect, POST /sync, GET /status, DELETE /disconnect
 - `src/routes/tasks.js` — GET /, POST /, PATCH /:id, DELETE /:id, GET /:id/subtasks, POST /:id/breakdown
 - `src/routes/schedule.js` — GET /, POST /blocks, PATCH /blocks/:id, DELETE /blocks/:id, GET /heat
@@ -86,6 +87,7 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `src/jobs/morningDigest.js` — 8am Pacific (15:00 UTC), today's tasks summary push
 - `src/jobs/majorReminders.js` — 9am Pacific (16:00 UTC), 30d/7d/1d major application deadline reminders
 - `src/jobs/index.js` — registers all four cron jobs; loaded by server.js on startup
+- `tests/courses.test.js` — 4 tests, all passing
 - `tests/schedule.test.js` — 25 tests, all passing
 - `tests/sessions.test.js` — 20 tests, all passing
 - `tests/majors.test.js` — 8 tests, all passing
@@ -96,10 +98,11 @@ Every new route gets a `tests/<route>.test.js` immediately after the route is bu
 - `tests/ics.test.js` — 9 tests, all passing
 - `tests/tasks.test.js` — 23 tests, all passing (Anthropic SDK mocked; routes by max_tokens: ≤16 → tag, >16 → breakdown)
 - `tests/chat.test.js` — 24 tests, all passing (Anthropic SDK mocked; all 7 side-effects covered)
-- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-05-07
+- `CLAUDE.md` + `docs/design.md` — living docs system; cross-checked, contradiction-free as of 2026-05-13
 
 ## What's Next (in order)
 - **Frontend integration and user study prep**
+  - `GET /api/courses` now live — frontend can build `useCourses()` hook + syllabus course picker + fix Profile → My Courses
 
 ---
 
