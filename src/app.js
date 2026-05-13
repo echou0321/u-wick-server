@@ -11,6 +11,7 @@ const syllabusRoutes = require('./routes/syllabus');
 const majorRoutes = require('./routes/majors');
 const goalRoutes = require('./routes/goals');
 const sessionRoutes = require('./routes/sessions');
+const courseRoutes = require('./routes/courses');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/syllabus', syllabusRoutes);
 app.use('/api/majors', majorRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/courses', courseRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
